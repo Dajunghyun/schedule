@@ -269,18 +269,17 @@
     .detail-item time { color:inherit; }
     @media(max-width:820px) { .header-right {position:static; margin-left:0; flex-wrap:wrap;} .weekly-layout {grid-template-columns:1fr;} .mini-calendar {max-width:340px; width:100%;} .brand {width:auto;} }
     .app-header { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); }
-    .brand { grid-column:1; }
+    .brand { grid-column:1; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
     .brand h1 { white-space:nowrap; }
     .month-nav { grid-column:2; }
     .header-right { grid-column:3; justify-self:end; }
-    .view-switcher { display:flex; justify-content:flex-end; gap:9px; padding:16px 30px 0; }
-    @media(max-width:1000px) {
+    .view-switcher { display:flex; align-items:center; gap:9px; padding:0; flex-shrink:0; }
+    @media(max-width:1150px) {
       .app-header { display:flex; flex-wrap:wrap; }
       .brand { flex:1 1 auto; }
       .header-right { position:static; margin-left:auto; flex-wrap:wrap; }
       .month-nav { order:3; width:100%; justify-content:center; }
     }
-    @media(max-width:820px) { .view-switcher { padding:12px 16px 0; } }
   </style>
 </head>
 <body>
@@ -288,6 +287,10 @@
     <header class="app-header">
       <div class="brand">
         <h1>다정현 월간 일정표</h1>
+        <nav class="view-switcher" aria-label="스케줄 보기 선택">
+          <button class="tab-btn active" id="monthlyTab" type="button">월간</button>
+          <button class="tab-btn" id="weeklyTab" type="button">주간</button>
+        </nav>
       </div>
 
       <div class="month-nav" id="monthNav">
@@ -302,11 +305,6 @@
         <button class="soft-btn auth-btn" id="authBtn" type="button">관리자 로그인</button>
       </div>
     </header>
-
-    <nav class="view-switcher" aria-label="스케줄 보기 선택">
-      <button class="tab-btn active" id="monthlyTab" type="button">월간</button>
-      <button class="tab-btn" id="weeklyTab" type="button">주간</button>
-    </nav>
 
     <section class="calendar-wrap" id="monthlyView">
       <div class="weekdays" aria-hidden="true">
