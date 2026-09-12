@@ -764,7 +764,7 @@
       if(item.time){const note=document.createElement('p'); note.className='hint';note.style.gridColumn='1/-1';note.textContent='기존 시간 '+item.time+' · 카테고리를 선택하면 시간 대신 표시됩니다.';row.append(note);}
     }
     $('addScheduleRow').onclick=()=>addRow();
-    const defaultColors=['#e4edf8','#f8cddd','#f5d879','#cce6d5','#cfc7ed','#a57861','#333843'];
+    const defaultColors=[];
     const palette=document.createElement('datalist');palette.id='eventColors';document.body.append(palette);
     const paletteStorageKey='scheduleCustomColors';
     const normalizeColor=value=>{
