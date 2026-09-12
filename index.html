@@ -436,7 +436,7 @@
     const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 
     function emptySchedule() {
-      return { status: 'none', items: [{time:'',text:''},{time:'',text:''},{time:'',text:''}] };
+      return { status: 'none', items: [{time:'',text:''}] };
     }
 
     function setView(view) {
@@ -538,7 +538,8 @@
       const status = ['none','on','off'].includes(data.status) ? data.status : 'none';
       document.querySelector(`input[name="status"][value="${status}"]`).checked = true;
       $('scheduleRows').innerHTML = '';
-      (data.items?.length ? data.items : [{}]).forEach(item => addRow(item));
+      const existingItems = (data.items || []).filter(item => item && (item.text?.trim() || item.time || item.category));
+      (existingItems.length ? existingItems : [{}]).forEach(item => addRow(item));
       $('continuedItems').innerHTML = '';
       itemsForDate(key).filter(item => item.startDate !== key).forEach(item => {
         const button = document.createElement('button'); button.type='button'; button.className='soft-btn';
