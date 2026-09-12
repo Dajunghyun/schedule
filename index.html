@@ -297,6 +297,23 @@
     #detailModal .detail-item { align-items:start; line-height:1.5; }
     .detail-content { min-width:0; overflow-wrap:anywhere; }
     .detail-range { display:block; margin-top:8px; font-size:13px; line-height:1.5; }
+      .weekly-layout { grid-template-areas:"heading navigation" "calendar content"; grid-template-columns:250px minmax(0,1fr); gap:18px 24px; align-items:start; }
+    .weekly-head { grid-area:heading; display:block; margin:0; }
+    .weekly-head p { line-height:1.5; }
+    .weekly-layout > .mini-calendar { grid-area:calendar; }
+    .weekly-content { grid-area:content; min-width:0; }
+    .weekly-content .weekly-admin { justify-content:flex-end; margin-top:12px; }
+    .week-nav { grid-area:navigation; position:relative; align-self:center; display:flex; justify-content:center; align-items:center; gap:clamp(16px,7vw,110px); margin:0; min-height:40px; }
+    .week-nav strong { font-size:20px; white-space:nowrap; }
+    .week-nav #thisWeek { position:absolute; left:0; }
+    @media(max-width:1100px) {
+      .week-nav { display:grid; grid-template-columns:38px minmax(0,1fr) 38px; gap:8px; }
+      .week-nav #thisWeek { position:static; grid-column:1/-1; justify-self:start; }
+    }
+    @media(max-width:820px) {
+      .weekly-layout { grid-template-columns:minmax(0,1fr); grid-template-areas:"heading" "calendar" "navigation" "content"; }
+      .week-nav strong { white-space:normal; }
+    }
   </style>
 </head>
 <body>
@@ -332,24 +349,35 @@
     </section>
 
     <section class="weekly-wrap" id="weeklyView" hidden>
-      <div class="weekly-head">
-        <div>
-          <h2>주간 스케줄</h2>
+      <div class="weekly-layout">
+        <div class="weekly-head">
+          <h2>주간 일정표</h2>
           <p>매주 업로드된 스케줄 이미지를 확인할 수 있어요.</p>
         </div>
-        <div class="weekly-admin">
-          <input id="weeklyImageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-          <button class="soft-btn" id="uploadImageBtn" type="button">이미지 업로드·교체</button>
-          <button class="soft-btn danger-btn" id="deleteImageBtn" type="button">이미지 삭제</button>
+        <div class="week-nav">
+          <button class="soft-btn" id="thisWeek" type="button">이번 주</button>
+          <button class="icon-btn" id="prevWeek" type="button" aria-label="이전 주">‹</button>
+          <strong id="weekLabel"></strong>
+          <button class="icon-btn" id="nextWeek" type="button" aria-label="다음 주">›</button>
+        </div>
+        <aside class="mini-calendar" aria-label="주간 날짜 선택">
+          <div class="mini-nav"><button type="button" class="icon-btn" id="miniPrev" aria-label="미니 캘린더 이전 달">‹</button><strong id="miniLabel"></strong><button type="button" class="icon-btn" id="miniNext" aria-label="미니 캘린더 다음 달">›</button></div>
+          <div class="mini-grid" id="miniGrid"></div>
+        </aside>
+        <div class="weekly-content">
+          <div class="weekly-stage">
+            <img class="weekly-image" id="weeklyImage" alt="다정현 주간 일정표" hidden>
+            <div class="weekly-empty" id="weeklyEmpty">아직 등록된 주간 스케줄 이미지가 없습니다.</div>
+          </div>
+          <div class="weekly-admin">
+            <input id="weeklyImageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+            <button class="soft-btn" id="uploadImageBtn" type="button">이미지 업로드·교체</button>
+            <button class="soft-btn danger-btn" id="deleteImageBtn" type="button">이미지 삭제</button>
+          </div>
+          <div class="upload-status" id="uploadStatus" aria-live="polite"></div>
         </div>
       </div>
-      <div class="weekly-layout"><aside class="mini-calendar" aria-label="주간 날짜 선택"><div class="mini-nav"><button type="button" class="icon-btn" id="miniPrev" aria-label="미니 캘린더 이전 달">‹</button><strong id="miniLabel"></strong><button type="button" class="icon-btn" id="miniNext" aria-label="미니 캘린더 다음 달">›</button></div><div class="mini-grid" id="miniGrid"></div></aside><div><div class="week-nav"><button class="icon-btn" id="prevWeek" aria-label="이전 주">‹</button><strong id="weekLabel"></strong><button class="icon-btn" id="nextWeek" aria-label="다음 주">›</button><button class="soft-btn" id="thisWeek">이번 주</button></div><div class="weekly-stage">
-        <img class="weekly-image" id="weeklyImage" alt="다정현 주간 방송 스케줄" hidden>
-        <div class="weekly-empty" id="weeklyEmpty">아직 등록된 주간 스케줄 이미지가 없습니다.</div>
-      </div>
-      <div class="upload-status" id="uploadStatus" aria-live="polite"></div></div></div>
-    </section>
-  </main>
+    </section>/main>
 
   <div class="modal-backdrop" id="loginModal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
@@ -897,7 +925,7 @@
     }
     function selectWeek(key){chosenDate=key;miniDate=parseDate(key);const next=monday(key);if(next!==weekKey){weekKey=next;subscribeWeek();}renderWeek();}
     function renderWeek(){
-      const last=parseDate(weekKey);last.setDate(last.getDate()+6);$('weekLabel').textContent=weekKey+' ~ '+dateKey(last);
+      const last=parseDate(weekKey);last.setDate(last.getDate()+6);$('weekLabel').textContent=rangeLabel(weekKey,dateKey(last));
       $('miniLabel').textContent=miniDate.getFullYear()+'년 '+(miniDate.getMonth()+1)+'월';const grid=$('miniGrid');grid.innerHTML='';
       ['월','화','수','목','금','토','일'].forEach(day=>{const span=document.createElement('span');span.textContent=day;grid.append(span);});
       const first=new Date(miniDate.getFullYear(),miniDate.getMonth(),1,12);first.setDate(1-(first.getDay()+6)%7);
