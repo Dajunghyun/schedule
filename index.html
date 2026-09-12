@@ -283,6 +283,9 @@
       .header-right { position:static; margin-left:auto; flex-wrap:wrap; }
       .month-nav { order:3; width:100%; justify-content:center; }
     }
+    #detailTitle { font-size:22px; }
+    #detailModal .detail-item { font-size:15px; }
+    #detailModal .modal-actions .soft-btn { font-size:16px; }
   </style>
 </head>
 <body>
@@ -353,14 +356,6 @@
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editTitle">
       <div class="modal-title-row"><h2 id="editTitle">일정 편집</h2><button class="close-btn" data-close="editModal" type="button">✕</button></div>
       <form class="form-stack" id="editForm">
-        <div>
-          <div class="row-label" style="margin-bottom:7px">방송 상태</div>
-          <div class="status-options">
-            <label><input type="radio" name="status" value="none"><span>미정</span></label>
-            <label><input type="radio" name="status" value="on"><span>방송 ON</span></label>
-            <label><input type="radio" name="status" value="off"><span>방송 OFF</span></label>
-          </div>
-        </div>
         <div class="row-label">일정 내용</div>
         <details class="palette-editor">
           <summary>+ 내 색상 추가·관리</summary>
@@ -523,7 +518,7 @@
       const data = state.schedules[key] || emptySchedule();
       const items = itemsForDate(key);
       $('detailTitle').textContent = displayDate(key);
-      let html = `<span class="detail-status${data.status === 'off' ? ' off' : ''}">${data.status === 'on' ? '방송 ON' : data.status === 'off' ? '방송 OFF' : '미정'}</span>`;
+      let html = '';
       if (!items.length) html += `<p style="color:var(--muted);font-size:14px">등록된 일정이 없습니다.</p>`;
       else {
         html += '<div class="detail-items">' + items.map(item => `<div class="detail-item"><time>${escapeHtml(item.category || item.time || '일정')}</time><span>${escapeHtml(item.text)}${item.endDate > item.startDate ? `<br><small>${escapeHtml(item.startDate)} ~ ${escapeHtml(item.endDate)}</small>` : ''}</span></div>`).join('') + '</div>';
@@ -535,11 +530,9 @@
     function openEditModal(key) {
       const data = state.schedules[key] || emptySchedule();
       $('editTitle').textContent = `${displayDate(key)} 편집`;
-      const status = ['none','on','off'].includes(data.status) ? data.status : 'none';
-      document.querySelector(`input[name="status"][value="${status}"]`).checked = true;
       $('scheduleRows').innerHTML = '';
       const existingItems = (data.items || []).filter(item => item && (item.text?.trim() || item.time || item.category));
-      (existingItems.length ? existingItems : [{}]).forEach(item => addRow(item));
+      (existingItems.length ? existingItems : data.status === 'off' ? [{category:'휴방',text:'휴방'}] : [{}]).forEach(item => addRow(item));
       $('continuedItems').innerHTML = '';
       itemsForDate(key).filter(item => item.startDate !== key).forEach(item => {
         const button = document.createElement('button'); button.type='button'; button.className='soft-btn';
@@ -556,7 +549,7 @@
       const button = $('saveScheduleBtn');
       button.disabled = true;
       $('editError').textContent = '저장하고 있습니다…';
-      const status = document.querySelector('input[name="status"]:checked')?.value || 'none';
+      const status = 'none';
       const items = [...document.querySelectorAll('.schedule-row')].map(row => ({
         category: row.querySelector('.category-input').value,
         time: row.dataset.legacyTime || '',
