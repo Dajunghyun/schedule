@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-build="calendar-no-off-background-final">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -226,7 +226,10 @@
     .weekday { padding:12px; background:var(--surface); }
     .calendar-grid { border-radius:0 0 14px 14px; }
     .day-cell:hover,.day-cell.outside { background:var(--hover); }
-    .day-cell.broadcast-off { background:#ececec; color:#333333; }
+    /* 방송 상태나 선택 여부에 따라 날짜 칸의 배경색을 변경하지 않습니다. */
+    .day-cell:not(.outside),
+    .day-cell:not(.outside):hover,
+    .day-cell:not(.outside).selected { background:var(--surface) !important; }
     .icon-btn,.soft-btn,.tab-btn,.modal-card { background:var(--surface); }
     .field input,.field select,.schedule-row input,.schedule-row select { background:var(--input); color:var(--text); }
     .tab-btn.active { color:var(--text); }
@@ -464,7 +467,6 @@
         const cell = document.createElement('button');
         cell.type = 'button';
         cell.className = 'day-cell';
-        if (data.status === 'off') cell.classList.add('broadcast-off');
         if (date.getMonth() !== state.month) cell.classList.add('outside');
         if (date.getDay() === 0) cell.classList.add('sunday');
         if (date.getDay() === 6) cell.classList.add('saturday');
@@ -853,3 +855,4 @@
   </script>
 </body>
 </html>
+
