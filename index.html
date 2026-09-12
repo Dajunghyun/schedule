@@ -286,6 +286,17 @@
     #detailTitle { font-size:22px; }
     #detailModal .detail-item { font-size:15px; }
     #detailModal .modal-actions .soft-btn { font-size:16px; }
+    .calendar-grid { display:block; }
+    .calendar-week { position:relative; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:1px; border-bottom:1px solid var(--line); }
+    .calendar-week:last-child { border-bottom:0; }
+    .week-events { position:absolute; top:43px; left:0; right:0; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); grid-auto-rows:23px; gap:4px 1px; pointer-events:none; }
+    .range-event { min-width:0; border:0; border-radius:0; padding:4px 7px; margin:0; text-align:left; font-size:13px; line-height:15px; cursor:pointer; pointer-events:auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .range-event.range-start { margin-left:8px; border-radius:7px 0 0 7px; }
+    .range-event.range-end { margin-right:8px; border-top-right-radius:7px; border-bottom-right-radius:7px; }
+    .range-event:focus-visible { outline:2px solid var(--text); outline-offset:-2px; }
+    #detailModal .detail-item { align-items:start; line-height:1.5; }
+    .detail-content { min-width:0; overflow-wrap:anywhere; }
+    .detail-range { display:block; margin-top:8px; font-size:13px; line-height:1.5; }
   </style>
 </head>
 <body>
@@ -454,7 +465,13 @@
       const gridStart = new Date(state.year, state.month, 1 - first.getDay());
       const todayKey = dateKey(new Date());
 
+      let weekContainer;
       for (let index = 0; index < 42; index++) {
+        if (index % 7 === 0) {
+          weekContainer = document.createElement('div');
+          weekContainer.className = 'calendar-week';
+          calendarGrid.appendChild(weekContainer);
+        }
         const date = new Date(gridStart);
         date.setDate(gridStart.getDate() + index);
         const key = dateKey(date);
@@ -476,8 +493,9 @@
 
         const list = document.createElement('div');
         list.className = 'event-list';
-        const validItems = itemsForDate(key);
-        if (data.status === 'off' && validItems.length === 0) validItems.push({time:'', text:'휴방'});
+        const allItems = itemsForDate(key);
+        const validItems = allItems.filter(item => !(item.endDate > item.startDate));
+        if (data.status === 'off' && allItems.length === 0) validItems.push({time:'', text:'휴방'});
         validItems.forEach(item => {
           const chip = document.createElement('div');
           chip.className = `event-chip${data.status === 'off' ? ' off' : ''}${item.endDate > item.startDate ? ' long' : ''}`;
@@ -497,7 +515,54 @@
         });
         cell.appendChild(list);
         cell.addEventListener('click', () => handleDayClick(key));
-        calendarGrid.appendChild(cell);
+        weekContainer.appendChild(cell);
+        if (index % 7 === 6) renderRangeEvents(weekContainer);
+      }
+    }
+
+    function shortRangeDate(key) {
+      const [year, month, day] = key.split('-').map(Number);
+      return `${pad(month)}/${pad(day)}(${['일','월','화','수','목','금','토'][new Date(year, month-1, day).getDay()]})`;
+    }
+    function rangeLabel(start, end) { return `${shortRangeDate(start)} ~ ${shortRangeDate(end)}`; }
+
+    function renderRangeEvents(weekContainer) {
+      const cells = [...weekContainer.querySelectorAll('.day-cell')];
+      const keys = cells.map(cell => cell.dataset.date);
+      const segments = [];
+      Object.entries(state.schedules).sort(([a],[b])=>a.localeCompare(b)).forEach(([startDate,data])=>{
+        (data.items || []).forEach(item=>{
+          if (!item || !(item.text || item.time) || !(item.endDate > startDate)) return;
+          const columns = keys.map((key,i)=>key >= startDate && key <= item.endDate ? i : -1).filter(i=>i>=0);
+          if (columns.length) segments.push({item,startDate,from:columns[0],to:columns[columns.length-1]});
+        });
+      });
+      segments.sort((a,b)=>a.from-b.from || b.to-a.to || a.startDate.localeCompare(b.startDate));
+      const lanes = [];
+      const overlay = document.createElement('div'); overlay.className='week-events';
+      segments.forEach(segment=>{
+        const {item,startDate,from,to}=segment;
+        let lane=lanes.findIndex(end=>end < from);
+        if(lane<0)lane=lanes.length;
+        lanes[lane]=to;
+        const bar=document.createElement('button');bar.type='button';bar.className='range-event';
+        bar.classList.toggle('range-start',keys[from]===startDate);
+        bar.classList.toggle('range-end',keys[to]===item.endDate);
+        bar.style.gridColumn=`${from+1} / ${to+2}`;bar.style.gridRow=String(lane+1);
+        paintChip(bar,item.color);
+        const label=[item.category || item.time,item.text].filter(Boolean).join(' ');
+        bar.textContent=label;bar.title=label+' · '+rangeLabel(startDate,item.endDate);
+        bar.setAttribute('aria-label',bar.title);
+        bar.addEventListener('click',event=>{
+          const bounds=weekContainer.getBoundingClientRect();
+          const column=event.detail===0 ? from : Math.max(from,Math.min(to,Math.floor((event.clientX-bounds.left)/bounds.width*7)));
+          handleDayClick(keys[column]);
+        });
+        overlay.appendChild(bar);
+      });
+      if(lanes.length){
+        cells.forEach(cell=>{cell.querySelector('.event-list').style.marginTop=`${lanes.length*27}px`;});
+        weekContainer.appendChild(overlay);
       }
     }
 
@@ -521,7 +586,7 @@
       let html = '';
       if (!items.length) html += `<p style="color:var(--muted);font-size:14px">등록된 일정이 없습니다.</p>`;
       else {
-        html += '<div class="detail-items">' + items.map(item => `<div class="detail-item"><time>${escapeHtml(item.category || item.time || '일정')}</time><span>${escapeHtml(item.text)}${item.endDate > item.startDate ? `<br><small>${escapeHtml(item.startDate)} ~ ${escapeHtml(item.endDate)}</small>` : ''}</span></div>`).join('') + '</div>';
+        html += '<div class="detail-items">' + items.map(item => `<div class="detail-item"><time>${escapeHtml(item.category || item.time || '일정')}</time><span class="detail-content">${escapeHtml(item.text)}${item.endDate > item.startDate ? `<small class="detail-range">${escapeHtml(rangeLabel(item.startDate,item.endDate))}</small>` : ''}</span></div>`).join('') + '</div>';
       }
       $('detailBody').innerHTML = html;
       $('detailModal').hidden = false;
