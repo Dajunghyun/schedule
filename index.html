@@ -248,6 +248,15 @@
     .weekly-stage { background:var(--hover); min-height:320px; }
     .week-nav strong { font-size:15px; text-align:center; }
     #scheduleRows { display:grid; gap:12px; }
+    .palette-editor { border:1px solid var(--line); border-radius:10px; padding:10px; font-size:12px; }
+    .palette-editor summary { cursor:pointer; font-weight:700; }
+    .palette-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; }
+    .palette-controls input[type="color"] { width:40px; height:36px; padding:3px; border:1px solid var(--line); border-radius:6px; }
+    .palette-controls input[type="text"] { width:112px; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--input); color:var(--text); }
+    .saved-colors { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+    .saved-color { display:flex; align-items:center; gap:5px; }
+    .saved-color i { width:20px; height:20px; border:1px solid #888; border-radius:4px; }
+    .saved-color button { border:1px solid var(--line); background:var(--surface); border-radius:6px; cursor:pointer; }
     .schedule-row { border:1px solid var(--line); border-radius:10px; padding:10px; grid-template-columns:90px minmax(0,1fr) 40px; }
     .schedule-row .color-input { padding:3px; height:42px; }
     .row-dates { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:12px; }
@@ -352,6 +361,17 @@
           </div>
         </div>
         <div class="row-label">일정 내용</div>
+        <details class="palette-editor">
+          <summary>+ 내 색상 추가·관리</summary>
+          <div class="palette-controls">
+            <input id="customColorPicker" type="color" value="#ececec" aria-label="추가할 색상 선택">
+            <input id="customColorHex" type="text" value="#ececec" maxlength="7" placeholder="#ececec" aria-label="추가할 색상 코드" spellcheck="false">
+            <button class="soft-btn" id="addCustomColor" type="button">색상표에 추가</button>
+          </div>
+          <div class="saved-colors" id="savedColors"></div>
+          <p class="hint">추가한 색은 각 일정의 색상표에 표시되며, 이 브라우저에 저장됩니다.</p>
+          <p class="hint" id="paletteMessage" aria-live="polite"></p>
+        </details>
         <p class="hint">여러 날 일정은 선택한 날짜부터 종료일까지 표시됩니다. 이어지는 일정은 시작일에서 한 번에 수정할 수 있어요.</p><div id="continuedItems"></div><div id="scheduleRows"></div><button class="soft-btn" id="addScheduleRow" type="button">+ 일정 추가</button>
         <p class="error-text" id="editError" aria-live="polite"></p>
         <div class="modal-actions"><button class="soft-btn danger-btn" id="resetScheduleBtn" type="button">일정 삭제</button><button class="soft-btn" data-close="editModal" type="button">취소</button><button class="soft-btn primary-btn" id="saveScheduleBtn" type="submit">저장</button></div>
@@ -744,7 +764,50 @@
       if(item.time){const note=document.createElement('p'); note.className='hint';note.style.gridColumn='1/-1';note.textContent='기존 시간 '+item.time+' · 카테고리를 선택하면 시간 대신 표시됩니다.';row.append(note);}
     }
     $('addScheduleRow').onclick=()=>addRow();
-    const palette=document.createElement('datalist');palette.id='eventColors';palette.innerHTML=['#e4edf8','#f8cddd','#f5d879','#cce6d5','#cfc7ed','#a57861','#333843'].map(c=>`<option value="${c}"></option>`).join('');document.body.append(palette);
+    const defaultColors=['#e4edf8','#f8cddd','#f5d879','#cce6d5','#cfc7ed','#a57861','#333843'];
+    const palette=document.createElement('datalist');palette.id='eventColors';document.body.append(palette);
+    const paletteStorageKey='scheduleCustomColors';
+    const normalizeColor=value=>{
+      let color=String(value||'').trim().toLowerCase();
+      if(!color.startsWith('#'))color='#'+color;
+      if(/^#[0-9a-f]{3}$/.test(color))color='#'+[...color.slice(1)].map(c=>c+c).join('');
+      return /^#[0-9a-f]{6}$/.test(color)?color:null;
+    };
+    let customColors=[];
+    try {
+      const saved=JSON.parse(localStorage.getItem(paletteStorageKey)||'[]');
+      if(Array.isArray(saved))customColors=[...new Set(saved.filter(c=>typeof c==='string').map(normalizeColor).filter(c=>c&&!defaultColors.includes(c)))];
+    } catch {}
+    function saveCustomColors(){
+      try{localStorage.setItem(paletteStorageKey,JSON.stringify(customColors));return true;}
+      catch{$('paletteMessage').textContent='브라우저 저장이 제한되어 이번 화면에서만 사용할 수 있습니다.';return false;}
+    }
+    function renderCustomColors(){
+      palette.replaceChildren();
+      [...defaultColors,...customColors].forEach(color=>{const option=document.createElement('option');option.value=color;palette.append(option);});
+      $('savedColors').replaceChildren();
+      customColors.forEach(color=>{
+        const group=document.createElement('span');group.className='saved-color';
+        const swatch=document.createElement('i');swatch.style.backgroundColor=color;swatch.setAttribute('aria-hidden','true');
+        const label=document.createElement('span');label.textContent=color;
+        const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label',color+' 색상표에서 제거');
+        remove.onclick=()=>{customColors=customColors.filter(c=>c!==color);renderCustomColors();$('paletteMessage').textContent='색상표에서 제거했습니다. 기존 일정 색상은 유지됩니다.';saveCustomColors();};
+        group.append(swatch,label,remove);$('savedColors').append(group);
+      });
+    }
+    $('customColorPicker').oninput=()=>{$('customColorHex').value=$('customColorPicker').value;};
+    $('customColorHex').oninput=()=>{const color=normalizeColor($('customColorHex').value);if(color)$('customColorPicker').value=color;};
+    function addCustomColor(){
+      const color=normalizeColor($('customColorHex').value);
+      if(!color){$('paletteMessage').textContent='올바른 색상 코드를 입력해주세요. 예: #ececec';return;}
+      if([...defaultColors,...customColors].includes(color)){$('paletteMessage').textContent='이미 색상표에 있는 색상입니다.';return;}
+      customColors.push(color);renderCustomColors();
+      $('customColorHex').value=color;$('customColorPicker').value=color;
+      if(saveCustomColors())$('paletteMessage').textContent=color+' 추가 완료. 일정의 색상표를 다시 열어 선택해주세요.';
+    }
+    $('addCustomColor').onclick=addCustomColor;
+    $('customColorHex').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();addCustomColor();}};
+    renderCustomColors();
     const themes={
       white:['#f7f8fb','#ffffff','#24262b','#8b909a','#e6e8ec','#e46f94','#fce8ef','#fcfcfd'],
       pink:['#fff0f5','#fffafd','#492c39','#957383','#eed4df','#dc7198','#f9d7e6','#fff3f8'],
