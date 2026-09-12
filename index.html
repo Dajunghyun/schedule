@@ -193,7 +193,6 @@
     .status-options input { position: absolute; opacity: 0; pointer-events: none; }
     .status-options span { display: block; padding: 9px; border: 1px solid var(--line); border-radius: 8px; text-align: center; font-size: 12px; cursor: pointer; }
     .status-options input:checked + span { border-color: var(--pink); background: var(--pink-soft); color: #b74f72; font-weight: 800; }
-    .status-options input[value="off"]:checked + span { background: #dbdbdb; border-color: #bcbcbc; color: #333333; }
     .schedule-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
     .danger-btn { color: #c74354; }
@@ -227,6 +226,7 @@
     .weekday { padding:12px; background:var(--surface); }
     .calendar-grid { border-radius:0 0 14px 14px; }
     .day-cell:hover,.day-cell.outside { background:var(--hover); }
+    .day-cell.broadcast-off { background:#dbdbdb; color:#333333; }
     .icon-btn,.soft-btn,.tab-btn,.modal-card { background:var(--surface); }
     .field input,.field select,.schedule-row input,.schedule-row select { background:var(--input); color:var(--text); }
     .tab-btn.active { color:var(--text); }
@@ -446,6 +446,7 @@
         const cell = document.createElement('button');
         cell.type = 'button';
         cell.className = 'day-cell';
+        if (data.status === 'off') cell.classList.add('broadcast-off');
         if (date.getMonth() !== state.month) cell.classList.add('outside');
         if (date.getDay() === 0) cell.classList.add('sunday');
         if (date.getDay() === 6) cell.classList.add('saturday');
