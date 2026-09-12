@@ -52,8 +52,7 @@
       border-bottom: 1px solid var(--line);
     }
     .brand { min-width: 190px; }
-    .brand small { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-    .brand h1 { margin: 0; font-size: 20px; letter-spacing: -.5px; }
+    .brand h1 { margin: 0; font-size: 25px; letter-spacing: -.5px; }
 
     .month-nav { display: flex; align-items: center; gap: 10px; }
     .icon-btn, .soft-btn, .tab-btn {
@@ -67,7 +66,7 @@
     .soft-btn, .tab-btn { padding: 9px 16px; font-size: 13px; font-weight: 700; }
     .icon-btn:hover, .soft-btn:hover, .tab-btn:hover { border-color: #cfd3da; background: #fafbfc; }
     .month-label { min-width: 108px; text-align: center; line-height: 1; }
-    .month-label strong { font-size: 27px; letter-spacing: -1px; }
+    .month-label strong { font-size: 30px; letter-spacing: -1px; }
     .month-label span { margin-left: 7px; color: var(--muted); font-size: 13px; }
 
     .header-right { margin-left: auto; display: flex; align-items: center; gap: 9px; }
@@ -259,13 +258,25 @@
     .detail-item { font-size:12px; background:var(--hover); }
     .detail-item time { color:inherit; }
     @media(max-width:820px) { .header-right {position:static; margin-left:0; flex-wrap:wrap;} .weekly-layout {grid-template-columns:1fr;} .mini-calendar {max-width:340px; width:100%;} .brand {width:auto;} }
+    .app-header { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); }
+    .brand { grid-column:1; }
+    .brand h1 { white-space:nowrap; }
+    .month-nav { grid-column:2; }
+    .header-right { grid-column:3; justify-self:end; }
+    .view-switcher { display:flex; justify-content:flex-end; gap:9px; padding:16px 30px 0; }
+    @media(max-width:1000px) {
+      .app-header { display:flex; flex-wrap:wrap; }
+      .brand { flex:1 1 auto; }
+      .header-right { position:static; margin-left:auto; flex-wrap:wrap; }
+      .month-nav { order:3; width:100%; justify-content:center; }
+    }
+    @media(max-width:820px) { .view-switcher { padding:12px 16px 0; } }
   </style>
 </head>
 <body>
   <main class="app-shell">
     <header class="app-header">
       <div class="brand">
-        <small>DAJUNGHYUN CONTENT CALENDAR</small>
         <h1>다정현 방송 스케줄</h1>
       </div>
 
@@ -278,11 +289,14 @@
 
       <div class="header-right">
         <select class="theme-select" id="themeSelect" aria-label="색상 테마"><option value="white">하얀색</option><option value="pink">분홍색</option><option value="blue">파란색</option><option value="yellow">노란색</option><option value="chocolate">초콜릿색</option><option value="gray">회색</option><option value="dark">다크모드</option></select>
-        <button class="tab-btn active" id="monthlyTab" type="button">월간</button>
-        <button class="tab-btn" id="weeklyTab" type="button">주간</button>
         <button class="soft-btn auth-btn" id="authBtn" type="button">관리자 로그인</button>
       </div>
     </header>
+
+    <nav class="view-switcher" aria-label="스케줄 보기 선택">
+      <button class="tab-btn active" id="monthlyTab" type="button">월간</button>
+      <button class="tab-btn" id="weeklyTab" type="button">주간</button>
+    </nav>
 
     <section class="calendar-wrap" id="monthlyView">
       <div class="weekdays" aria-hidden="true">
