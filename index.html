@@ -193,6 +193,7 @@
     .status-options input { position: absolute; opacity: 0; pointer-events: none; }
     .status-options span { display: block; padding: 9px; border: 1px solid var(--line); border-radius: 8px; text-align: center; font-size: 12px; cursor: pointer; }
     .status-options input:checked + span { border-color: var(--pink); background: var(--pink-soft); color: #b74f72; font-weight: 800; }
+    .status-options input[value="off"]:checked + span { background: #dbdbdb; border-color: #bcbcbc; color: #333333; }
     .schedule-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
     .danger-btn { color: #c74354; }
@@ -277,7 +278,7 @@
   <main class="app-shell">
     <header class="app-header">
       <div class="brand">
-        <h1>다정현 방송 스케줄</h1>
+        <h1>다정현 월간 일정표</h1>
       </div>
 
       <div class="month-nav" id="monthNav">
