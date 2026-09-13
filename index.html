@@ -418,7 +418,7 @@
           <p class="hint">추가한 색은 각 일정의 색상표에 표시되며, 이 브라우저에 저장됩니다.</p>
           <p class="hint" id="paletteMessage" aria-live="polite"></p>
         </details>
-        <p class="hint">여러 날 일정은 선택한 날짜부터 종료일까지 표시됩니다. 이어지는 일정은 시작일에서 한 번에 수정할 수 있어요.</p><div id="continuedItems"></div><div id="scheduleRows"></div><button class="soft-btn" id="addScheduleRow" type="button">+ 일정 추가</button>
+        <p class="hint">각 일정의 시작일을 변경할 수 있습니다. 여러 날 일정은 시작일부터 종료일까지 표시됩니다.</p><div id="continuedItems"></div><div id="scheduleRows"></div><button class="soft-btn" id="addScheduleRow" type="button">+ 일정 추가</button>
         <p class="error-text" id="editError" aria-live="polite"></p>
         <div class="modal-actions"><button class="soft-btn danger-btn" id="resetScheduleBtn" type="button">일정 삭제</button><button class="soft-btn" data-close="editModal" type="button">취소</button><button class="soft-btn primary-btn" id="saveScheduleBtn" type="submit">저장</button></div>
       </form>
@@ -436,7 +436,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDNYILtQUpoNjIJOn6PTYl_BghPS5ieBaE",
@@ -578,12 +578,14 @@
       });
       segments.sort((a,b)=>a.from-b.from || b.to-a.to || a.startDate.localeCompare(b.startDate));
       const lanes = [];
+      const occupiedRows = Array(7).fill(0);
       const overlay = document.createElement('div'); overlay.className='week-events';
       segments.forEach(segment=>{
         const {item,startDate,from,to}=segment;
         let lane=lanes.findIndex(end=>end < from);
         if(lane<0)lane=lanes.length;
         lanes[lane]=to;
+        for(let column=from;column<=to;column++)occupiedRows[column]=Math.max(occupiedRows[column],lane+1);
         const bar=document.createElement('button');bar.type='button';bar.className='range-event';
         bar.classList.toggle('range-start',keys[from]===startDate);
         bar.classList.toggle('range-end',keys[to]===item.endDate);
@@ -600,7 +602,7 @@
         overlay.appendChild(bar);
       });
       if(lanes.length){
-        cells.forEach(cell=>{cell.querySelector('.event-list').style.marginTop=`${lanes.length*27}px`;});
+        cells.forEach((cell,column)=>{cell.querySelector('.event-list').style.marginTop=`${occupiedRows[column]*27}px`;});
         weekContainer.appendChild(overlay);
       }
     }
@@ -653,21 +655,42 @@
       const button = $('saveScheduleBtn');
       button.disabled = true;
       $('editError').textContent = '저장하고 있습니다…';
-      const status = 'none';
+      const originalKey = state.selectedKey;
       const items = [...document.querySelectorAll('.schedule-row')].map(row => ({
         category: row.querySelector('.category-input').value,
         time: row.dataset.legacyTime || '',
         color: row.querySelector('.color-input').value,
-        endDate: row.querySelector('.duration-input').value === 'multi' ? row.querySelector('.end-input').value : state.selectedKey,
+        startDate: row.querySelector('.start-input').value,
+        endDate: row.querySelector('.duration-input').value === 'multi' ? row.querySelector('.end-input').value : row.querySelector('.start-input').value,
         text: row.querySelector('.text-input').value.trim()
       }));
-      if (items.some(item => item.text && (!item.endDate || item.endDate < state.selectedKey))) { $('editError').textContent='종료일은 시작일과 같거나 이후여야 합니다.'; button.disabled=false; return; }
+      if (items.some(item => (item.text || item.time) && (!item.startDate || !item.endDate || item.endDate < item.startDate))) { $('editError').textContent='종료일은 시작일과 같거나 이후여야 합니다.'; button.disabled=false; return; }
       try {
-        if (status === 'none' && !items.some(item => item.time || item.text)) {
-          await deleteDoc(doc(db, 'schedules', state.selectedKey));
-        } else {
-          await setDoc(doc(db, 'schedules', state.selectedKey), { status, items: items.filter(item => item.text || item.time) });
-        }
+        const groups = new Map([[originalKey, []]]);
+        items.filter(item=>item.text || item.time).forEach(({startDate,...item})=>{
+          if(!groups.has(startDate))groups.set(startDate,[]);
+          groups.get(startDate).push(item);
+        });
+        await runTransaction(db, async transaction=>{
+          const destinations = new Map();
+          for(const key of groups.keys()){
+            if(key!==originalKey)destinations.set(key,await transaction.get(doc(db,'schedules',key)));
+          }
+          for(const [key,editedItems] of groups){
+            const ref=doc(db,'schedules',key);
+            if(key===originalKey){
+              if(editedItems.length)transaction.set(ref,{status:'none',items:editedItems},{merge:true});
+              else transaction.delete(ref);
+            } else {
+              const snapshot=destinations.get(key);
+              const previous=snapshot.exists()?snapshot.data():{};
+              const existingItems=Array.isArray(previous.items)?previous.items:[];
+              const combined=[...existingItems];
+              if(previous.status==='off' && !existingItems.some(item=>item && (item.text || item.time || item.category)))combined.push({category:'휴방',text:'휴방',time:'',endDate:key});
+              transaction.set(ref,{status:previous.status || 'none',items:[...combined,...editedItems]},{merge:true});
+            }
+          }
+        });
         $('editModal').hidden = true;
       } catch (error) {
         console.error(error);
@@ -883,14 +906,15 @@
     }
     function addRow(item={}) {
       const row=document.createElement('div'); row.className='schedule-row'; row.dataset.legacyTime=item.time||'';
-      row.innerHTML=`<select class="category-input" aria-label="일정 카테고리">${categories.map(c=>`<option value="${c}">${c||'구분 없음'}</option>`).join('')}</select><input class="text-input" type="text" maxlength="60" placeholder="일정 내용" aria-label="일정 내용"><input class="color-input" type="color" aria-label="일정 색상" list="eventColors"><div class="row-dates"><select class="duration-input" aria-label="일정 기간"><option value="single">하루 일정</option><option value="multi">여러 날 일정</option></select><span>시작 ${escapeHtml(state.selectedKey)}</span><label class="end-label" hidden>종료 <input class="end-input" type="date" aria-label="종료 날짜"></label><button class="soft-btn danger-btn" type="button" aria-label="이 일정 제거">제거</button></div>`;
+      row.innerHTML=`<select class="category-input" aria-label="일정 카테고리">${categories.map(c=>`<option value="${c}">${c||'구분 없음'}</option>`).join('')}</select><input class="text-input" type="text" maxlength="60" placeholder="일정 내용" aria-label="일정 내용"><input class="color-input" type="color" aria-label="일정 색상" list="eventColors"><div class="row-dates"><select class="duration-input" aria-label="일정 기간"><option value="single">하루 일정</option><option value="multi">여러 날 일정</option></select><label>시작 <input class="start-input" type="date" aria-label="시작 날짜" required></label><label class="end-label" hidden>종료 <input class="end-input" type="date" aria-label="종료 날짜"></label><button class="soft-btn danger-btn" type="button" aria-label="이 일정 제거">제거</button></div>`;
       row.querySelector('.category-input').value=categories.includes(item.category)?item.category:'';
       row.querySelector('.category-input').onchange=()=>{row.dataset.legacyTime='';};
       row.querySelector('.text-input').value=item.text||'';
       row.querySelector('.color-input').value=validColor(item.color);
-      const duration=row.querySelector('.duration-input'), end=row.querySelector('.end-input');
+      const duration=row.querySelector('.duration-input'), end=row.querySelector('.end-input'), start=row.querySelector('.start-input');
+      start.value=state.selectedKey;
       duration.value=item.endDate>state.selectedKey?'multi':'single'; end.value=item.endDate||state.selectedKey; end.min=state.selectedKey;
-      const update=()=>{row.querySelector('.end-label').hidden=duration.value!=='multi'; end.required=duration.value==='multi';}; duration.onchange=update; update();
+      const update=()=>{row.querySelector('.end-label').hidden=duration.value!=='multi'; end.required=duration.value==='multi';}; duration.onchange=update; start.onchange=()=>{end.min=start.value;if(duration.value==='single')end.value=start.value;}; update();
       row.querySelector('button').onclick=()=>row.remove(); $('scheduleRows').append(row);
       if(item.time){const note=document.createElement('p'); note.className='hint';note.style.gridColumn='1/-1';note.textContent='기존 시간 '+item.time+' · 카테고리를 선택하면 시간 대신 표시됩니다.';row.append(note);}
     }
