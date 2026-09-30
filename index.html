@@ -225,6 +225,13 @@
 
     :root { --hover:#fcfcfd; --input:#ffffff; }
     .day-cell { display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; background:var(--surface); }
+    .day-heading { display:flex; align-items:center; gap:5px; height:25px; min-height:25px; margin-bottom:8px; min-width:0; }
+    .day-heading .day-number { margin-bottom:0; }
+    .holiday-name { color:#d65362; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .day-cell.holiday:not(.outside) .day-number { color:#d65362; }
+    .day-cell.holiday.today .day-number { background:#d65362; }
+    .day-cell.outside .holiday-name { opacity:.45; }
+    #holidayStatus { margin:10px 0 0; }
     .day-number { flex-shrink:0; align-self:flex-start; }
     .weekdays { font-size:15px; font-weight:800; border:1px solid var(--line); border-bottom:0; border-radius:14px 14px 0 0; overflow:hidden; gap:1px; background:var(--line); }
     .weekday { padding:12px; background:var(--surface); }
@@ -350,6 +357,7 @@
         <div class="weekday">수</div><div class="weekday">목</div><div class="weekday">금</div><div class="weekday">토</div>
       </div>
       <div class="calendar-grid" id="calendarGrid" aria-label="월간 방송 일정"></div>
+      <p class="hint" id="holidayStatus" aria-live="polite" hidden></p>
     </section>
 
     <section class="weekly-wrap" id="weeklyView" hidden>
@@ -495,7 +503,66 @@
       if (!monthly) renderWeek();
     }
 
+
+    // Public KASI-derived data: https://github.com/hyunbinseo/open-data
+    const holidayData = {"2026":{"2026-01-01":["1월1일"],"2026-02-16":["설날"],"2026-02-17":["설날"],"2026-02-18":["설날"],"2026-03-01":["삼일절"],"2026-03-02":["대체공휴일(삼일절)"],"2026-05-01":["노동절"],"2026-05-05":["어린이날"],"2026-05-24":["부처님오신날"],"2026-05-25":["대체공휴일(부처님오신날)"],"2026-06-03":["전국동시지방선거"],"2026-06-06":["현충일"],"2026-07-17":["제헌절"],"2026-08-15":["광복절"],"2026-08-17":["대체공휴일(광복절)"],"2026-09-24":["추석"],"2026-09-25":["추석"],"2026-09-26":["추석"],"2026-10-03":["개천절"],"2026-10-05":["대체공휴일(개천절)"],"2026-10-09":["한글날"],"2026-12-25":["기독탄신일"]},"2027":{"2027-01-01":["1월1일"],"2027-02-06":["설날"],"2027-02-07":["설날"],"2027-02-08":["설날"],"2027-02-09":["대체공휴일(설날)"],"2027-03-01":["삼일절"],"2027-05-01":["노동절"],"2027-05-03":["대체공휴일(노동절)"],"2027-05-05":["어린이날"],"2027-05-13":["부처님오신날"],"2027-06-06":["현충일"],"2027-07-17":["제헌절"],"2027-07-19":["대체공휴일(제헌절)"],"2027-08-15":["광복절"],"2027-08-16":["대체공휴일(광복절)"],"2027-09-14":["추석"],"2027-09-15":["추석"],"2027-09-16":["추석"],"2027-10-03":["개천절"],"2027-10-04":["대체공휴일(개천절)"],"2027-10-09":["한글날"],"2027-10-11":["대체공휴일(한글날)"],"2027-12-25":["기독탄신일"],"2027-12-27":["대체공휴일(기독탄신일)"]}};
+    const holidayRequests = new Map();
+    const holidayChecked = new Map();
+    const holidayFailures = new Set();
+    function validateHolidays(data,year){
+      if(!data || typeof data!=='object' || Array.isArray(data))throw Error('Invalid holiday data');
+      const result={};
+      for(const [key,names] of Object.entries(data)){
+        if(!key.startsWith(year+'-') || !/^\d{4}-\d{2}-\d{2}$/.test(key) || !Array.isArray(names) || !names.length || names.some(name=>typeof name!=='string' || !name.trim()))throw Error('Invalid holiday entry');
+        result[key]=names;
+      }
+      if(!Object.keys(result).length)throw Error('Empty holiday data');
+      return result;
+    }
+    function holidayName(key){return (holidayData[key.slice(0,4)]?.[key] || []).map(name=>name==='1월1일'?'신정':name==='기독탄신일'?'성탄절':name).join(' · ');}
+    function loadHolidayYear(year){
+      if(holidayRequests.has(year))return;
+      if(Date.now()-(holidayChecked.get(year)||0)<(holidayFailures.has(year)?60000:86400000))return;
+      const cacheKey='kr-public-holidays-v1-'+year;
+      if(!holidayChecked.has(year))try{
+        const saved=JSON.parse(localStorage.getItem(cacheKey)||'null');
+        if(saved){holidayData[year]=validateHolidays(saved.data,year);}
+      }catch{}
+      holidayChecked.set(year,Date.now());
+      const request=(async()=>{
+        let loaded=false;
+        for(const base of ['https://raw.githubusercontent.com/hyunbinseo/open-data/main/data/holidays/','https://cdn.jsdelivr.net/gh/hyunbinseo/open-data@main/data/holidays/']){
+          const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),8000);
+          try{
+            const response=await fetch(base+year+'.json',{signal:controller.signal,cache:'no-cache'});
+            if(!response.ok)throw Error('HTTP '+response.status);
+            holidayData[year]=validateHolidays(await response.json(),year);
+            try{localStorage.setItem(cacheKey,JSON.stringify({data:holidayData[year]}));}catch{}
+            loaded=true;break;
+          }catch{}finally{clearTimeout(timeout);}
+        }
+        if(loaded)holidayFailures.delete(year);else holidayFailures.add(year);
+      })();
+      holidayRequests.set(year,request);
+      request.finally(()=>{holidayRequests.delete(year);renderCalendar();});
+    }
+    function prepareHolidays(){
+      const first=new Date(state.year,state.month,1);
+      const start=new Date(state.year,state.month,1-first.getDay());
+      const end=new Date(start);end.setDate(end.getDate()+41);
+      const years=[...new Set([start.getFullYear(),end.getFullYear()])];
+      years.forEach(loadHolidayYear);
+      const missing=years.filter(year=>!holidayData[year]);
+      const stale=years.some(year=>holidayFailures.has(year));
+      const status=$('holidayStatus');
+      status.hidden=!missing.length&&!stale;
+      status.textContent=missing.length ? (stale?'공휴일 자료가 아직 없거나 불러오지 못했습니다. 해당 연도 공휴일 표시는 완전하지 않을 수 있습니다.':'공휴일을 불러오고 있습니다…') : stale?'최신 공휴일을 확인하지 못해 저장된 자료를 표시합니다.':'';
+    }
+    window.addEventListener('online',()=>{holidayFailures.forEach(year=>holidayChecked.delete(year));renderCalendar();});
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderCalendar();});
+
     function renderCalendar() {
+      prepareHolidays();
       monthText.textContent = `${state.month + 1}월`;
       yearText.textContent = state.year;
       calendarGrid.innerHTML = '';
@@ -528,7 +595,14 @@
         const number = document.createElement('span');
         number.className = 'day-number';
         number.textContent = date.getDate();
-        cell.appendChild(number);
+        const heading=document.createElement('div');heading.className='day-heading';heading.appendChild(number);
+        const holiday=holidayName(key);
+        if(holiday){
+          cell.classList.add('holiday');
+          const label=document.createElement('span');label.className='holiday-name';label.textContent=holiday;label.title=holiday;
+          heading.appendChild(label);cell.setAttribute('aria-label',displayDate(key)+' · '+holiday);
+        }
+        cell.appendChild(heading);
 
         const list = document.createElement('div');
         list.className = 'event-list';
